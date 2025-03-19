@@ -5,7 +5,6 @@ import sounddevice as sd
 import soundfile as sf
 import pickle
 from sklearn.neighbors import KNeighborsClassifier
-from flask import Flask, request, jsonify
 
 # 📂 Kayıtların saklanacağı klasör ve model dosyası
 VERI_KLASORU = "dataset"
@@ -15,7 +14,7 @@ if not os.path.exists(VERI_KLASORU):
     os.makedirs(VERI_KLASORU)
 
 # 🎤 Ses kayıt ayarları
-SURE = 1  # Kayıt süresi (saniye)
+SURE = 3  # Kayıt süresi (saniye)
 ORNEKLEME_ORANI = 22050  # Örnekleme frekansı
 
 # 📌 Modeli yükle veya yeni bir model oluştur
@@ -47,28 +46,24 @@ def ozellikleri_cikar(dosya_yolu):
     """ 🔍 Ses dosyasından MFCC özelliklerini çıkar """
     try:
         y, sr = librosa.load(dosya_yolu, sr=ORNEKLEME_ORANI, mono=True)
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
         return np.mean(mfccs, axis=1)
     except Exception as e:
         print(f"❌ Ses özellikleri çıkarılamadı: {e}")
         return None
 
-# تعريف الـ Flask قبل استخدامه
-app = Flask(__name__)
-
-@app.route('/kayit', methods=['POST'])
 def ogrenci_kayit():
     """ 📝 Yeni öğrenci kaydı al """
-    data = request.get_json()
-    isim = data['isim']
-    ogrenci_no = data['ogrenci_no']
+    isim = input("👤 Öğrencinin adını girin: ").strip()
+    ogrenci_no = input("🔢 Öğrenci numarasını girin: ").strip()
 
     dosya_yolu = os.path.join(VERI_KLASORU, f"{ogrenci_no}.wav")
     ses_kaydet(dosya_yolu)
 
     ozellikler = ozellikleri_cikar(dosya_yolu)
     if ozellikler is None:
-        return jsonify({"status": "error", "message": "Özellik çıkarma başarısız!"})
+        print("❌ Özellik çıkarma başarısız!")
+        return
 
     ogrenci_verileri[ogrenci_no] = isim
 
@@ -87,30 +82,65 @@ def ogrenci_kayit():
             with open(MODEL_DOSYA, "wb") as f:
                 pickle.dump((model, ogrenci_verileri), f)
 
-        return jsonify({"status": "success", "message": f"{isim} ({ogrenci_no}) başarıyla kaydedildi!"})
+        print(f"✅ {isim} ({ogrenci_no}) başarıyla kaydedildi!")
     else:
-        return jsonify({"status": "error", "message": "Model güncellenemedi!"})
+        print("❌ Model güncellenemedi!")
 
-@app.route('/yoklama', methods=['POST'])
+def ogrenci_sil():
+    """ 🧹 Öğrenci kaydını sil """
+    ogrenci_no = input("🔢 Silmek istediğiniz öğrenci numarasını girin: ").strip()
+
+    if ogrenci_no in ogrenci_verileri:
+        del ogrenci_verileri[ogrenci_no]
+        dosya_yolu = os.path.join(VERI_KLASORU, f"{ogrenci_no}.wav")
+        if os.path.exists(dosya_yolu):
+            os.remove(dosya_yolu)
+            print(f"✅ {ogrenci_no} numaralı öğrenci ve kaydı başarıyla silindi!")
+        else:
+            print("❌ Öğrenci kaydına ait ses dosyası bulunamadı!")
+    else:
+        print("❌ Öğrenci numarası bulunamadı!")
+
 def yoklama_al():
     """ 📋 Yoklama al ve öğrenciyi tanımla """
-    data = request.get_json()
     gecici_dosya = "gecici_ses.wav"
     ses_kaydet(gecici_dosya)
 
     ozellikler = ozellikleri_cikar(gecici_dosya)
     if ozellikler is None:
-        return jsonify({"status": "error", "message": "Kaydedilen ses özellikleri çıkarılamadı!"})
+        print("❌ Kaydedilen ses özellikleri çıkarılamadı!")
+        return
 
     if hasattr(model, "predict"):
         try:
             ogrenci_no = model.predict([ozellikler])[0]
             ogrenci_adi = ogrenci_verileri.get(ogrenci_no, "Bilinmeyen")
-            return jsonify({"status": "success", "message": f"{ogrenci_adi} ({ogrenci_no}) derste!"})
+            print(f"✅ {ogrenci_adi} ({ogrenci_no}) derste!")
         except Exception as e:
-            return jsonify({"status": "error", "message": f"Ses tanınamadı: {e}"})
+            print(f"❌ Ses tanınamadı: {e}")
     else:
-        return jsonify({"status": "error", "message": "Model henüz eğitilmedi!"})
+        print("❌ Model henüz eğitilmedi!")
 
-if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+def main():
+    while True:
+        print("\n📌 Bir işlem seçin:")
+        print("1️⃣ Yeni Öğrenci Kaydı")
+        print("2️⃣ Yoklama Al")
+        print("3️⃣ Öğrenci Sil")
+        print("4️⃣ Çıkış")
+        secim = input("👉 Seçiminizi girin: ").strip()
+
+        if secim == "1":
+            ogrenci_kayit()
+        elif secim == "2":
+            yoklama_al()
+        elif secim == "3":
+            ogrenci_sil()
+        elif secim == "4":
+            print("👋 Güle güle!")
+            break
+        else:
+            print("❌ Geçersiz seçim, tekrar deneyin!")
+
+if __name__ == "__main__":
+    main()
