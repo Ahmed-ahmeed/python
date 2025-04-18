@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yoklama Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Yoklama Sistemi</h1>
+
+        <!-- Mesajlar -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Ders Ekleme Formu -->
+        <h2>Ders Ekle</h2>
+        <form action="{{ url_for('ders_ekle') }}" method="POST" class="mb-4">
+            <div class="mb-3">
+                <label for="ders_adi" class="form-label">Ders Adı:</label>
+                <input type="text" id="ders_adi" name="ders_adi" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Ders Ekle</button>
+        </form>
+
+        <!-- Öğrenci Ekleme Formu -->
+        <h2>Öğrenci Ekle</h2>
+        <form action="{{ url_for('ogrenci_ekle') }}" method="POST" enctype="multipart/form-data" class="mb-4">
+            <div class="mb-3">
+                <label for="tam_adi" class="form-label">Öğrenci Adı:</label>
+                <input type="text" id="tam_adi" name="tam_adi" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="ogrenci_numarasi" class="form-label">Öğrenci Numarası:</label>
+                <input type="text" id="ogrenci_numarasi" name="ogrenci_numarasi" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label for="foto" class="form-label">Öğrenci Fotoğrafı:</label>
+                <input type="file" id="foto" name="foto" class="form-control" accept="image/*" required>
+            </div>
+            <div class="mb-3">
+                <label for="ders_id" class="form-label">Ders Seçin:</label>
+                <select id="ders_id" name="ders_id" class="form-select" required>
+                    {% for ders in dersler %}
+                        <option value="{{ ders[0] }}">{{ ders[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Öğrenci Ekle</button>
+        </form>
+
+        <!-- Yoklama Alma Formu -->
+        <h2>Yoklama Al</h2>
+        <form id="yoklamaForm" class="mb-4">
+            <div class="mb-3">
+                <label for="ders_id" class="form-label">Ders Seçin:</label>
+                <select id="ders_id" name="ders_id" class="form-select" required>
+                    {% for ders in dersler %}
+                        <option value="{{ ders[0] }}">{{ ders[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Yoklama Al</button>
+        </form>
+        <div id="sesMesaji" class="alert alert-info" style="display: none;"></div>
+
+        <!-- Popup Penceresi -->
+        <div class="overlay" id="overlay"></div>
+        <div class="popup" id="popup">
+            <div class="popup-content">
+                <h3 id="popupBaslik"></h3>
+                <p id="popupMesaj"></p>
+                <button onclick="popupKapat()" class="btn btn-secondary">Kapat</button>
+            </div>
+        </div>
+
+        <!-- Öğrenci Listesi -->
+        <h2>Öğrenci Listesi</h2>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Öğrenci Adı</th>
+                    <th>Öğrenci Numarası</th>
+                    <th>Ders</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ogrenci in ogrenciler %}
+                    <tr>
+                        <td>{{ ogrenci[1] }}</td>
+                        <td>{{ ogrenci[2] }}</td>
+                        <td>{{ ogrenci[5] }}</td>  <!-- Ders Adı -->
+                        <td>
+                            <a href="{{ url_for('ogrenci_sil', ogrenci_id=ogrenci[0]) }}" class="btn btn-danger btn-sm">Tümünden Sil</a>
+                            <a href="{{ url_for('ogrenciyi_dersten_sil', ogrenci_id=ogrenci[0], ders_id=ogrenci[4]) }}" class="btn btn-warning btn-sm">Dersten Sil</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Rapor Oluştur -->
+        <h2>Rapor Oluştur</h2>
+        <form action="{{ url_for('rapor_olustur', ders_id=1) }}" method="GET" class="mb-4">
+            <div class="mb-3">
+                <label for="ders_id" class="form-label">Ders Seçin:</label>
+                <select id="ders_id" name="ders_id" class="form-select" required>
+                    {% for ders in dersler %}
+                        <option value="{{ ders[0] }}">{{ ders[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Rapor Oluştur</button>
+        </form>
+    </div>
+
+    <script>
+        // Form gönderimi
+        document.getElementById('yoklamaForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            // Başlangıç mesajını göster
+            document.getElementById('sesMesaji').style.display = 'block';
+            document.getElementById('sesMesaji').innerText = "İsminizi söyleyin...";
+
+            const response = await fetch('/yoklama_al', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.status === "success") {
+                // Başarı mesajını göster
+                document.getElementById('popupBaslik').innerText = "Yoklama Kaydedildi";
+                document.getElementById('popupMesaj').innerText = result.message;
+                popupAc();
+            } else if (result.status === "error") {
+                // Hata mesajını göster
+                document.getElementById('popupBaslik').innerText = "Hata";
+                document.getElementById('popupMesaj').innerText = result.message;
+                popupAc();
+            }
+        });
+
+        // Popup penceresini aç
+        function popupAc() {
+            document.getElementById('popup').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }
+
+        // Popup penceresini kapat
+        function popupKapat() {
+            document.getElementById('popup').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
